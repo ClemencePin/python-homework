@@ -7,8 +7,8 @@ Lancez-le avec :  uv run boids.py
 Testez-le avec :  uv run pytest
 """
 
-import math  # noqa: F401 (servira à l'étape 2)
-import random  # noqa: F401 (servira à l'étape 4)
+import math
+import random
 from pathlib import Path
 
 import arcade
@@ -46,10 +46,12 @@ class Boid(arcade.Sprite):
     def __init__(self, x, y, angle, speed=SPEED, others=None):
         super().__init__(ARROW, center_x=x, center_y=y, angle=angle)
         self.speed = speed
+        self.others = others
 
     def update(self, delta_time=1 / 60, *args, **kwargs):
         """Appelée par arcade (via la SpriteList) à chaque mise à jour."""
-        others = args[0] if args else kwargs.get("others")
+        others = args[0] if args else kwargs.get("others", self.others)
+        self.angle += getattr(self, "turning", 0) * TURN_SPEED * delta_time
         rad = math.radians(self.angle)
 
 
@@ -61,7 +63,8 @@ class Boid(arcade.Sprite):
             dx, dy = self.separation(others)
 
         self.center_x += self.speed * delta_time * math.cos(rad) + dx
-        self.center_y -= self.speed * delta_time * math.sin(rad) - dx
+        self.center_y -= self.speed * delta_time * math.sin(rad)
+        self.center_y += dy
 
         self.center_x = self.center_x % WIDTH
         self.center_y = self.center_y % HEIGHT
