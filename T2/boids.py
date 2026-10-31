@@ -20,7 +20,7 @@ BACKGROUND = arcade.color.ALMOND
 HERE = Path(__file__).parent
 ARROW = HERE / "media" / "arrow.png"
 OBSTACLE = HERE / "media" / "obstacle.png"
-SKY = HERE / "media" / "sky.png"  # le décor (étape 9)
+SKY = HERE / "media" / "sky_2.jpg"  # le décor (étape 9)
 
 SPEED = 100  # pixels par seconde (étape 2)
 TURN_SPEED = 180  # degrés par seconde, tant qu'une flèche est enfoncée (étape 5)
@@ -49,22 +49,30 @@ class Boid(arcade.Sprite):
 
     def update(self, delta_time=1 / 60, *args, **kwargs):
         """Appelée par arcade (via la SpriteList) à chaque mise à jour."""
+        others = args[0] if args else kwargs.get("others")
         rad = math.radians(self.angle)
-        self.center_x += self.speed * delta_time * math.cos(rad)
-        self.center_y -= self.speed * delta_time * math.sin(rad)
 
-        self.center_x = self.center_x % WIDTH
-        self.center_y = self.center_y % HEIGHT
 
         self.angle += random.uniform(-NOISE, NOISE)
 
-        others = args[0] if args else kwargs.get("others")
+        dx, dy = 0, 0
+
+        if others is not None:
+            dx, dy = self.separation(others)
+
+        self.center_x += self.speed * delta_time * math.cos(rad) + dx
+        self.center_y -= self.speed * delta_time * math.sin(rad) - dx
+
+        self.center_x = self.center_x % WIDTH
+        self.center_y = self.center_y % HEIGHT
+        
+
 
         if others is not None :
             if self.neighbours(others):
-                self.color = arcade.color.WHITE
+                self.alpha = 50
             else:
-                self.color = arcade.color.LIGHT_GRAY
+                self.alpha = 255
 
     def neighbours(self, others, radius=RADIUS):
         """Les objets de `others` à moins de `radius` pixels, sauf soi-même."""
@@ -72,14 +80,32 @@ class Boid(arcade.Sprite):
         for other in others:
             if other is self:
                 continue
-            distance = math.sqrt((self.center_x - other.center_x)**2 + (self.center_y - other.center_y)**2)
+            distance = math.dist(self.position, other.position)
             if distance < radius:
                 voisins.append(other)
         return voisins
 
     def separation(self, others, radius=RADIUS):
         """Le déplacement (dx, dy) qui écarte le boid de ses voisins."""
-        raise NotImplementedError("étape 8")
+        dx = 0
+        dy = 0
+
+        for other in others:
+            if other is self:
+                continue
+
+            vx = self.center_x - other.center_x
+            vy = self.center_y - other.center_y
+
+            d = math.sqrt(vx**2 + vy**2)
+
+            if 0 < d < radius:
+                facteur = 0.5 * (1 - d / radius)
+
+                dx += vx * facteur
+                dy += vy * facteur
+
+        return (dx, dy)
 
 
 class Obstacle(arcade.Sprite):
@@ -137,6 +163,14 @@ class MyWindow(arcade.Window):
 
         for obstacle in obstacle_grid(GRID):
             self.obstacles.append(obstacle)
+
+        self.sky = arcade.SpriteList()
+        sky = arcade.Sprite(SKY, center_x=WIDTH / 2, center_y=HEIGHT / 2)
+
+        sky.width = WIDTH
+        sky.height = HEIGHT
+
+        self.sky.append(sky)
     
     def on_key_press(self, key, modifiers):
         if key == arcade.key.LEFT :
@@ -151,10 +185,12 @@ class MyWindow(arcade.Window):
     def on_update(self, delta_time):
         for boid in self.boids :
             boid.angle += self.turn * delta_time * TURN_SPEED
-        self.boids.update(delta_time, self.boids)
-
+        others = list(self.boids) + list(self.obstacles)
+        self.boids.update(delta_time, others)
+        
     def on_draw(self):
         self.clear()
+        self.sky.draw()
         self.boids.draw()
         self.obstacles.draw()
 
